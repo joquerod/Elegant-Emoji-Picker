@@ -22,14 +22,22 @@ class AppConfiguration {
 #endif
     }
     
-    static var windowFrame: CGRect { return UIApplication.shared.keyWindow?.frame ?? UIScreen.main.bounds }
+    static var windowFrame: CGRect { return UIApplication.shared.keyWindow?.frame ?? .zero }
 
 }
 
 extension UIApplication {
-    
+
+    /// The key window, found through the connected-scene graph.
+    ///
+    /// `UIApplication.windows` was deprecated in iOS 15 and returns nothing
+    /// useful in a scene-based app; `UIScreen.main` was deprecated in iOS 26
+    /// and is wrong on iPad, where a window can be a fraction of the screen.
     var keyWindow: UIWindow? {
-        return UIApplication.shared.windows.first(where: { $0.isKeyWindow })
+        connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first(where: { $0.isKeyWindow })
     }
-    
+
 }

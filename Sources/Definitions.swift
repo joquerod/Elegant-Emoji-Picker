@@ -110,6 +110,17 @@ public struct Emoji: Codable, Equatable {
         self.iOSVersion = iOSVersion
     }
     
+    /// Whether a single search term matches this emoji, in the order the
+    /// default search algorithm prioritises: aliases, then tags, then the
+    /// Unicode description.
+    /// - Parameter term: A single lowercased search term (no spaces).
+    /// - Returns: true if the term appears in any of this emoji's text.
+    public func matchesSearchTerm (_ term: String) -> Bool {
+        aliases.contains(where: { $0.localizedCaseInsensitiveContains(term) }) ||
+        tags.contains(where: { $0.localizedCaseInsensitiveContains(term) }) ||
+        description.localizedCaseInsensitiveContains(term)
+    }
+
     /// Create a duplicate of this emoji with another skin tone
     /// - Parameter withSkinTone: new skin tone to use. If nil, creates a standard yellow emoji
     /// - Returns: new Emoji with the applied skin tone

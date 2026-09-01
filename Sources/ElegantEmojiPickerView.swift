@@ -80,10 +80,16 @@ public struct ElegantEmojiPickerView: UIViewControllerRepresentable {
     public func makeUIViewController(context: Context) -> ElegantEmojiPicker {
         // The picker asks its delegate for sections inside init, so the
         // coordinator has to be wired up as the delegate here rather than after.
+        //
+        // `configuresOwnPresentation: false` is essential: the picker is a
+        // child view controller here, so its `presentationController` is the
+        // container's. Letting it set a modal style and claim that delegate
+        // tears down the very popover/sheet hosting it.
         ElegantEmojiPicker(
             delegate: context.coordinator,
             configuration: configuration,
-            localization: localization
+            localization: localization,
+            configuresOwnPresentation: false
         )
     }
 

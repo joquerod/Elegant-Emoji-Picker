@@ -15,6 +15,10 @@ open class ElegantEmojiPicker: UIViewController {
     public weak var delegate: ElegantEmojiPickerDelegate?
     public let config: ElegantConfiguration
     public let localization: ElegantLocalization
+
+    /// False when the picker is embedded as a child view controller and the
+    /// container owns the presentation. See `init(…configuresOwnPresentation:)`.
+    private var configuresOwnPresentation: Bool = true
     
     let padding = 16.0
     let topElementHeight = 40.0
@@ -60,30 +64,43 @@ open class ElegantEmojiPicker: UIViewController {
     ///   - localization: provide a localization to change texts on all labels
     ///   - sourceView: provide a source view for a popover presentation style.
     ///   - sourceNavigationBarButton: provide a source navigation bar button for a popover presentation style.
-    public init (delegate: ElegantEmojiPickerDelegate? = nil, configuration: ElegantConfiguration = ElegantConfiguration(), localization: ElegantLocalization = ElegantLocalization(), sourceView: UIView? = nil, sourceNavigationBarButton: UIBarButtonItem? = nil) {
+    ///   - configuresOwnPresentation: whether the picker should set its own
+    ///   modal presentation style and take over its presentation controller.
+    ///   Pass false when embedding the picker as a child view controller —
+    ///   for example as the content of a SwiftUI `.popover` or `.sheet` —
+    ///   where the container owns the presentation and the picker claiming it
+    ///   tears that presentation down.
+    public init (delegate: ElegantEmojiPickerDelegate? = nil, configuration: ElegantConfiguration = ElegantConfiguration(), localization: ElegantLocalization = ElegantLocalization(), sourceView: UIView? = nil, sourceNavigationBarButton: UIBarButtonItem? = nil, configuresOwnPresentation: Bool = true) {
         self.delegate = delegate
         self.config = configuration
         self.localization = localization
+        self.configuresOwnPresentation = configuresOwnPresentation
         super.init(nibName: nil, bundle: nil)
-        
+
         self.emojiSections = self.delegate?.emojiPicker(self, loadEmojiSections: config, localization) ?? ElegantEmojiPicker.getDefaultEmojiSections(config: config, localization: localization)
-        
-        if let sourceView = sourceView, !AppConfiguration.isIPhone, AppConfiguration.windowFrame.width > 500 {
-            self.modalPresentationStyle = .popover
-            self.popoverPresentationController?.sourceView = sourceView
-        } else if let sourceNavigationBarButton = sourceNavigationBarButton, !AppConfiguration.isIPhone, AppConfiguration.windowFrame.width > 500 {
-            self.modalPresentationStyle = .popover
-            self.popoverPresentationController?.barButtonItem = sourceNavigationBarButton
-        } else {
-            self.modalPresentationStyle = .formSheet
-            if #available(iOS 15.0, *) {
-                self.sheetPresentationController?.prefersGrabberVisible = true
-                self.sheetPresentationController?.detents = [.medium(), .large()]
+
+        // An embedded picker is not the presented view controller — its
+        // `presentationController` belongs to whatever container is presenting
+        // it, so configuring a style or claiming the delegate here would
+        // reach past the picker and break the container's own presentation.
+        if configuresOwnPresentation {
+            if let sourceView = sourceView, !AppConfiguration.isIPhone, AppConfiguration.windowFrame.width > 500 {
+                self.modalPresentationStyle = .popover
+                self.popoverPresentationController?.sourceView = sourceView
+            } else if let sourceNavigationBarButton = sourceNavigationBarButton, !AppConfiguration.isIPhone, AppConfiguration.windowFrame.width > 500 {
+                self.modalPresentationStyle = .popover
+                self.popoverPresentationController?.barButtonItem = sourceNavigationBarButton
+            } else {
+                self.modalPresentationStyle = .formSheet
+                if #available(iOS 15.0, *) {
+                    self.sheetPresentationController?.prefersGrabberVisible = true
+                    self.sheetPresentationController?.detents = [.medium(), .large()]
+                }
             }
+
+            self.presentationController?.delegate = self
         }
-        
-        self.presentationController?.delegate = self
-        
+
         if #unavailable(iOS 26.0) { // in iOS 26 they forced opaque white background (in large detent) and liquid glass (in medium detent), so we only need the blur for OS below it
             self.view.addSubview(UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial)), anchors: LayoutAnchor.fullFrame)
         }
@@ -199,7 +216,17 @@ open class ElegantEmojiPicker: UIViewController {
     }
     
     public override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        self.view.backgroundColor = UIScreen.main.traitCollection.userInterfaceStyle == .light ? .black.withAlphaComponent(0.1) : .clear
+        // The light-mode tint is a scrim for the picker's own modal
+        // presentation. Embedded, there is nothing behind it to dim — it would
+        // just grey out the container's chrome — so leave the view clear.
+        // Reads this view's own traits rather than UIScreen.main, which is
+        // deprecated in iOS 26 and wrong for a window that is only part of the
+        // screen.
+        guard configuresOwnPresentation else {
+            self.view.backgroundColor = .clear
+            return
+        }
+        self.view.backgroundColor = traitCollection.userInterfaceStyle == .light ? .black.withAlphaComponent(0.1) : .clear
     }
     
     @objc func TappedClose () {
@@ -565,27 +592,40 @@ extension ElegantEmojiPicker {
     }
     
     /// Get emoji search results for a given prompt, using the default search algorithm. First looks for matches in aliases, then in tags, and lastly in description. Sorts search results by relevance.
+    ///
+    /// A prompt of several words is matched term by term: an emoji is returned
+    /// only if *every* word matches somewhere in its aliases, tags or
+    /// description. Matching the prompt as one substring meant a query like
+    /// "red car" found nothing, because no single field contains that exact
+    /// run of characters.
+    ///
+    /// Results are also de-duplicated, since the same emoji can appear in more
+    /// than one section — a caller supplying a curated section alongside the
+    /// standard Unicode categories would otherwise see it listed twice.
     /// - Parameters:
     ///   - prompt: Search prompt to use.
     ///   - fromAvailable: Which emojis to search from.
     /// - Returns: Array of [Emoji] that were found.
     static public func getSearchResults (_ prompt: String, fromAvailable: [EmojiSection] ) -> [Emoji] {
-        if prompt.isEmpty || prompt == " " { return []}
-        
-        var cleanSearchTerm = prompt.lowercased()
-        if cleanSearchTerm.last == " " { cleanSearchTerm.removeLast() }
-        
+        let terms = prompt.lowercased().split(separator: " ").map(String.init)
+        if terms.isEmpty { return [] }
+
         var results = [Emoji]()
+        // Keyed by the glyph rather than by Emoji equality: getDefaultEmojiSections
+        // applies persisted skin tones with duplicate(_:), so two instances of
+        // the same emoji can compare unequal.
+        var seenGlyphs = Set<String>()
 
         for section in fromAvailable {
-            results.append(contentsOf: section.emojis.filter {
-                $0.aliases.contains(where: { $0.localizedCaseInsensitiveContains(cleanSearchTerm) }) ||
-                $0.tags.contains(where: { $0.localizedCaseInsensitiveContains(cleanSearchTerm) }) ||
-                $0.description.localizedCaseInsensitiveContains(cleanSearchTerm)
-            })
+            for emoji in section.emojis {
+                if seenGlyphs.contains(emoji.emoji) { continue }
+                if !terms.allSatisfy({ emoji.matchesSearchTerm($0) }) { continue }
+                seenGlyphs.insert(emoji.emoji)
+                results.append(emoji)
+            }
         }
-        
-        return results.sorted { sortSearchResults($0, $1, prompt: cleanSearchTerm) }
+
+        return results.sorted { sortSearchResults($0, $1, prompt: terms.joined(separator: " ")) }
     }
     
     static func sortSearchResults (_ first: Emoji, _ second: Emoji, prompt: String) -> Bool {
