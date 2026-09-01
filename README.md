@@ -9,6 +9,14 @@
 ![Elegant Emoji Picker MIT License](https://img.shields.io/github/license/finalet/elegant-emoji-picker)
 ![Elengat Emoji Picker Contact](https://img.shields.io/badge/Contact-%40GrantOgany-darkgray?link=https://twitter.com/GrantOgany)
 
+> 🍴 **This is a fork** of [Finalet/Elegant-Emoji-Picker](https://github.com/Finalet/Elegant-Emoji-Picker)
+> — all credit to [@GrantOgany](https://twitter.com/GrantOgany); the rest of this
+> README is theirs. It adds SwiftUI embedding, multi-word search, and an opaque
+> background option.
+>
+> **→ [FORK_CHANGES.md](FORK_CHANGES.md)** for what differs and how to use it.
+> If you don't need those changes, use the original.
+
 Why is there no built in emoji picker in UIKit? Same reason as why there is no calculator app in iPadOS? Perhaps. But should we just eat up Craig's laziness? Not this time.
 Behold: ~~UIEmojiPicker~~ Elegant Emoji Picker.
 
@@ -48,6 +56,9 @@ With your Xcode project open, go to File → Add Packages, enter the address bel
 ```
 https://github.com/Finalet/Elegant-Emoji-Picker
 ```
+
+> 🍴 For **this fork**, use `https://github.com/joquerod/Elegant-Emoji-Picker`
+> instead — see [FORK_CHANGES.md](FORK_CHANGES.md).
 
 Afterwards, import `ElegantEmojiPicker` module where you want to use it.
 
