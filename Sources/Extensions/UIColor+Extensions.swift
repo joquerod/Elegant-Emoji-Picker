@@ -22,4 +22,16 @@ extension UIColor {
     func lerp (second: UIColor, percentage: CGFloat) -> UIColor {
         return UIColor(red: (1-percentage)*self.components.red + percentage*second.components.red, green: (1-percentage)*self.components.green + percentage*second.components.green, blue: (1-percentage)*self.components.blue + percentage*second.components.blue, alpha: (1-percentage)*self.components.alpha + percentage*second.components.alpha)
     }
+
+    /// A fully opaque variant of this colour nudged toward the foreground, for
+    /// surfaces that must read as raised without being see-through.
+    ///
+    /// Both colours are resolved against `traits` first: `components` reads
+    /// through `getRed`, which returns garbage for an unresolved dynamic
+    /// colour, so blending `.label` directly would break in dark mode.
+    func raised (by amount: CGFloat, for traits: UITraitCollection) -> UIColor {
+        let base = resolvedColor(with: traits)
+        let foreground = UIColor.label.resolvedColor(with: traits)
+        return base.lerp(second: foreground, percentage: amount).withAlphaComponent(1)
+    }
 }

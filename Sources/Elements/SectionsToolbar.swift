@@ -30,15 +30,23 @@ class SectionsToolbar: UIView {
         self.PopupShadow()
         
         backgroundEffect.clipsToBounds = true
-        if #available(iOS 26.0, *) {
+        if emojiPicker.config.backgroundColor != nil {
+            // Opaque mode — the toolbar floats over the grid, so glass here
+            // would show the emoji scrolling underneath it.
+            backgroundEffect.effect = nil
+        } else if #available(iOS 26.0, *) {
             backgroundEffect.effect = UIGlassEffect()
         } else {
             backgroundEffect.effect = UIBlurEffect(style: .systemUltraThinMaterial)
         }
         self.addSubview(backgroundEffect, anchors: LayoutAnchor.fullFrame)
-        
+
         selectionBlur.clipsToBounds = true
         selectionBlur.backgroundColor = .label.withAlphaComponent(0.3)
+
+        if let backgroundColor = emojiPicker.config.backgroundColor {
+            applyOpaqueBackground(backgroundColor, for: traitCollection)
+        }
         self.addSubview(selectionBlur, anchors: [.centerY(0)])
         
         selectionConstraint = selectionBlur.leadingAnchor.constraint(equalTo: self.leadingAnchor)
@@ -64,6 +72,16 @@ class SectionsToolbar: UIView {
         }
     }
     
+    /// Fills the toolbar and its selection pill with opaque blends of
+    /// `backgroundColor`, for pickers configured with an explicit background.
+    /// Re-applied on trait changes so a light/dark switch repaints it.
+    func applyOpaqueBackground (_ backgroundColor: UIColor, for traits: UITraitCollection) {
+        backgroundEffect.effect = nil
+        backgroundEffect.backgroundColor = backgroundColor.raised(by: 0.10, for: traits)
+        selectionBlur.effect = nil
+        selectionBlur.backgroundColor = backgroundColor.raised(by: 0.24, for: traits)
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         backgroundEffect.layer.cornerRadius = backgroundEffect.frame.height*0.5

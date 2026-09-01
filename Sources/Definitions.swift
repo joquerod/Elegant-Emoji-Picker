@@ -203,7 +203,23 @@ public struct ElegantConfiguration {
     public var supportsSkinTones: Bool
     public var persistSkinTones: Bool
     public var defaultSkinTone: EmojiSkinTone? = nil
-    
+
+    /// An opaque background for the picker, replacing its translucent
+    /// materials.
+    ///
+    /// By default the picker is see-through: a blur behind the grid, and
+    /// blur/glass behind the search field and the sections toolbar. On iOS 26
+    /// the backing blur is skipped entirely (the system paints its own
+    /// material behind a sheet), so a picker embedded in a container that does
+    /// *not* paint one — for example as the content of a SwiftUI `.popover` —
+    /// has no background at all and whatever sits behind it shows through.
+    ///
+    /// Set this to render the picker on a solid colour instead. Its search
+    /// field and toolbar are then filled with subtle blends of it rather than
+    /// blurring what is behind them. `nil` (the default) keeps the translucent
+    /// appearance.
+    public var backgroundColor: UIColor?
+
     /// Create a new configuration object
     /// - Parameters:
     ///   - showSearch: Show or hide search bar
@@ -216,6 +232,7 @@ public struct ElegantConfiguration {
     ///   - supportsSkinTones: Allow or disallow selecting emojis skin tone with long-press
     ///   - persistSkinTones: Should save user's skin tone selection for each emoji between sessions. Default is true.
     ///   - defaultSkinTone: Optional skin tone to use as default. Default value is `nil`, meaning standard yellow emojis will be used.
+    ///   - backgroundColor: Render the picker opaquely on this colour instead of its translucent materials. Default is `nil`, keeping the translucent appearance.
     public init(
         showSearch: Bool = true,
         showRandom: Bool = true,
@@ -226,8 +243,11 @@ public struct ElegantConfiguration {
         categories: [EmojiCategory] = [.SmileysAndEmotion, .PeopleAndBody, .AnimalsAndNature, .FoodAndDrink, .TravelAndPlaces, .Activities, .Objects, .Symbols, .Flags],
         supportsSkinTones: Bool = true,
         persistSkinTones: Bool = true,
-        defaultSkinTone: EmojiSkinTone? = nil) {
-            
+        defaultSkinTone: EmojiSkinTone? = nil,
+        backgroundColor: UIColor? = nil) {
+
+        self.backgroundColor = backgroundColor
+
         self.showSearch = showSearch
         self.showRandom = showRandom
         self.showReset = showReset

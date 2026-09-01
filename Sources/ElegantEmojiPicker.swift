@@ -101,13 +101,22 @@ open class ElegantEmojiPicker: UIViewController {
             self.presentationController?.delegate = self
         }
 
-        if #unavailable(iOS 26.0) { // in iOS 26 they forced opaque white background (in large detent) and liquid glass (in medium detent), so we only need the blur for OS below it
+        if let backgroundColor = config.backgroundColor {
+            // Opaque mode: paint the surface ourselves and skip the blur
+            // entirely. Nothing behind the picker should show through.
+            self.view.backgroundColor = backgroundColor
+        } else if #unavailable(iOS 26.0) { // in iOS 26 they forced opaque white background (in large detent) and liquid glass (in medium detent), so we only need the blur for OS below it
             self.view.addSubview(UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial)), anchors: LayoutAnchor.fullFrame)
         }
-        
+
         if config.showSearch {
-            searchFieldBackground = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
-            searchFieldBackground?.backgroundColor = .systemBackground.withAlphaComponent(0.5)
+            if let backgroundColor = config.backgroundColor {
+                searchFieldBackground = UIVisualEffectView(effect: nil)
+                searchFieldBackground?.backgroundColor = backgroundColor.raised(by: 0.08, for: traitCollection)
+            } else {
+                searchFieldBackground = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+                searchFieldBackground?.backgroundColor = .systemBackground.withAlphaComponent(0.5)
+            }
             searchFieldBackground!.layer.cornerRadius = 8
             searchFieldBackground!.clipsToBounds = true
             searchFieldBackground!.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(TappedSearchBackground)))
@@ -216,6 +225,15 @@ open class ElegantEmojiPicker: UIViewController {
     }
     
     public override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        // An explicit background wins over the scrim, and has to be re-resolved
+        // here so a light/dark switch repaints it.
+        if let backgroundColor = config.backgroundColor {
+            self.view.backgroundColor = backgroundColor
+            searchFieldBackground?.backgroundColor = backgroundColor.raised(by: 0.08, for: traitCollection)
+            toolbar?.applyOpaqueBackground(backgroundColor, for: traitCollection)
+            return
+        }
+
         // The light-mode tint is a scrim for the picker's own modal
         // presentation. Embedded, there is nothing behind it to dim — it would
         // just grey out the container's chrome — so leave the view clear.
